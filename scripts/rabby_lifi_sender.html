@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rabby LI.FI Sender</title>
+    <style>
+      :root {
+        --bg: #f4efe6;
+        --panel: #fffaf0;
+        --ink: #1f1a17;
+        --muted: #6e655d;
+        --line: #d9c9b5;
+        --accent: #a54d1f;
+        --accent-strong: #7d3210;
+        --good: #17623b;
+        --bad: #8f1f1f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(165, 77, 31, 0.16), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(125, 50, 16, 0.12), transparent 24%),
+          linear-gradient(180deg, #fbf6ee 0%, var(--bg) 100%);
+      }
+
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1;
+      }
+
+      .intro {
+        margin: 0 0 24px;
+        color: var(--muted);
+        max-width: 760px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 20px;
+      }
+
+      .card {
+        background: color-mix(in srgb, var(--panel) 88%, white);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 12px 40px rgba(31, 26, 23, 0.06);
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 1.1rem;
+      }
+
+      label {
+        display: block;
+        margin: 14px 0 8px;
+        font-weight: 600;
+      }
+
+      textarea,
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font: inherit;
+        background: #fffdf9;
+        color: var(--ink);
+      }
+
+      textarea {
+        min-height: 320px;
+        resize: vertical;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 11px 16px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+      }
+
+      button.secondary {
+        background: #eadbc9;
+        color: var(--ink);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 8px 12px;
+        margin: 0;
+      }
+
+      .kv dt {
+        color: var(--muted);
+      }
+
+      .kv dd {
+        margin: 0;
+        word-break: break-all;
+      }
+
+      .status {
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fffdf9;
+        white-space: pre-wrap;
+      }
+
+      .status.good {
+        color: var(--good);
+        border-color: color-mix(in srgb, var(--good) 28%, var(--line));
+      }
+
+      .status.bad {
+        color: var(--bad);
+        border-color: color-mix(in srgb, var(--bad) 28%, var(--line));
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      @media (max-width: 820px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Rabby LI.FI Sender</h1>
+      <p class="intro">
+        Paste either the whole backend intent JSON or just the nested LI.FI quote JSON. This page extracts
+        <code>quote.transactionRequest</code>, switches to the source chain when possible, and asks Rabby to send it.
+      </p>
+
+      <div class="grid">
+        <section class="card">
+          <h2>Quote Input</h2>
+          <label for="quoteInput">Intent JSON or Quote JSON</label>
+          <textarea id="quoteInput" placeholder='Paste the response from POST /v1/intents here'></textarea>
+
+          <div class="actions">
+            <button id="parseBtn" class="secondary">Parse</button>
+            <button id="connectBtn" class="secondary">Connect Rabby</button>
+            <button id="approveBtn" class="secondary" disabled>Approve Token</button>
+            <button id="sendBtn" disabled>Send Transaction</button>
+          </div>
+
+          <div id="status" class="status">Waiting for quote JSON.</div>
+        </section>
+
+        <aside class="card">
+          <h2>Parsed Transaction</h2>
+          <dl class="kv">
+            <dt>Wallet</dt>
+            <dd id="walletValue">Not connected</dd>
+            <dt>Source Chain</dt>
+            <dd id="chainValue">-</dd>
+            <dt>To</dt>
+            <dd id="toValue">-</dd>
+            <dt>Value</dt>
+            <dd id="valueValue">-</dd>
+            <dt>Tool</dt>
+            <dd id="toolValue">-</dd>
+            <dt>Approval</dt>
+            <dd id="approvalValue">-</dd>
+            <dt>Escrow</dt>
+            <dd id="escrowValue">-</dd>
+          </dl>
+
+          <label for="dataPreview">Data</label>
+          <textarea id="dataPreview" readonly></textarea>
+
+          <p class="hint">
+            After Rabby returns a tx hash, paste it back into the terminal wizard or use the backend submit endpoint.
+          </p>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const quoteInput = document.getElementById("quoteInput");
+      const dataPreview = document.getElementById("dataPreview");
+      const statusEl = document.getElementById("status");
+      const connectBtn = document.getElementById("connectBtn");
+      const parseBtn = document.getElementById("parseBtn");
+      const approveBtn = document.getElementById("approveBtn");
+      const sendBtn = document.getElementById("sendBtn");
+      const walletValue = document.getElementById("walletValue");
+      const chainValue = document.getElementById("chainValue");
+      const toValue = document.getElementById("toValue");
+      const valueValue = document.getElementById("valueValue");
+      const toolValue = document.getElementById("toolValue");
+      const approvalValue = document.getElementById("approvalValue");
+      const escrowValue = document.getElementById("escrowValue");
+
+      let connectedAccount = null;
+      let parsed = null;
+
+      function setStatus(message, tone = "") {
+        statusEl.textContent = message;
+        statusEl.className = tone ? `status ${tone}` : "status";
+      }
+
+      function normalizeHexQuantity(value) {
+        if (value == null || value === "") return "0x0";
+        if (typeof value === "string" && value.startsWith("0x")) {
+          return value === "0x" ? "0x0" : value;
+        }
+        return "0x" + BigInt(value).toString(16);
+      }
+
+      function getSourceChainId(quote) {
+        return (
+          quote?.action?.fromChainId ??
+          quote?.fromChainId ??
+          quote?.transactionRequest?.chainId ??
+          quote?.transactionRequest?.chainID ??
+          null
+        );
+      }
+
+      function extractQuotePayload(raw) {
+        if (raw?.quote?.transactionRequest) {
+          return {
+            quote: raw.quote,
+            intent: raw,
+          };
+        }
+
+        if (raw?.transactionRequest) {
+          return {
+            quote: raw,
+            intent: null,
+          };
+        }
+
+        throw new Error("Could not find quote.transactionRequest in the pasted JSON.");
+      }
+
+      function renderParsed() {
+        if (!parsed) return;
+
+        const tx = parsed.quote.transactionRequest || {};
+        const chainId = getSourceChainId(parsed.quote);
+
+        chainValue.textContent = chainId == null ? "-" : String(chainId);
+        toValue.textContent = tx.to || "-";
+        valueValue.textContent = normalizeHexQuantity(tx.value);
+        toolValue.textContent = parsed.quote.tool || "-";
+        approvalValue.textContent = parsed.quote?.estimate?.approvalAddress || "-";
+        escrowValue.textContent = parsed.intent?.escrowAddress || "-";
+        dataPreview.value = tx.data || "";
+      }
+
+      function encodeApprove(spender, amount) {
+        const selector = "0x095ea7b3";
+        const spenderWord = spender.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+        const amountWord = BigInt(amount).toString(16).padStart(64, "0");
+        return selector + spenderWord + amountWord;
+      }
+
+      async function connectWallet() {
+        if (!window.ethereum) {
+          throw new Error("No injected wallet provider found. Open this page in the browser where Rabby is installed.");
+        }
+
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        connectedAccount = accounts?.[0] || null;
+        walletValue.textContent = connectedAccount || "Not connected";
+        return connectedAccount;
+      }
+
+      async function ensureChain(chainId) {
+        if (chainId == null) return;
+
+        const hexChainId = normalizeHexQuantity(chainId);
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: hexChainId }],
+          });
+        } catch (err) {
+          throw new Error(`Could not switch Rabby to chain ${chainId}: ${err.message || err}`);
+        }
+      }
+
+      function parseInput() {
+        const raw = quoteInput.value.trim();
+        if (!raw) {
+          throw new Error("Paste the intent JSON or quote JSON first.");
+        }
+
+        const parsedJson = JSON.parse(raw);
+        parsed = extractQuotePayload(parsedJson);
+        renderParsed();
+        sendBtn.disabled = false;
+        approveBtn.disabled = !(parsed.quote?.estimate?.approvalAddress && parsed.quote?.action?.fromToken?.address);
+        setStatus("Quote parsed. Connect Rabby, then send the transaction.", "good");
+      }
+
+      async function approveToken() {
+        if (!parsed) {
+          throw new Error("Parse a quote first.");
+        }
+
+        if (!connectedAccount) {
+          await connectWallet();
+        }
+
+        const quote = parsed.quote;
+        const chainId = getSourceChainId(quote);
+        const token = quote?.action?.fromToken?.address;
+        const spender = quote?.estimate?.approvalAddress;
+        const amount = quote?.action?.fromAmount;
+
+        if (!token || !spender || !amount) {
+          throw new Error("This quote does not contain enough approval information.");
+        }
+
+        await ensureChain(chainId);
+
+        const txHash = await window.ethereum.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: connectedAccount,
+              to: token,
+              data: encodeApprove(spender, amount),
+              value: "0x0",
+            },
+          ],
+        });
+
+        setStatus(
+          `Approval transaction sent.\n\nTx hash: ${txHash}\n\nWait for it to be mined, then click Send Transaction.`,
+          "good"
+        );
+      }
+
+      async function sendTransaction() {
+        if (!parsed) {
+          throw new Error("Parse a quote first.");
+        }
+
+        if (!connectedAccount) {
+          await connectWallet();
+        }
+
+        const tx = parsed.quote.transactionRequest || {};
+        const chainId = getSourceChainId(parsed.quote);
+        await ensureChain(chainId);
+
+        const request = {
+          from: connectedAccount,
+          to: tx.to,
+          data: tx.data || "0x",
+          value: normalizeHexQuantity(tx.value),
+        };
+
+        if (!request.to) {
+          throw new Error("transactionRequest.to is missing.");
+        }
+
+        const txHash = await window.ethereum.request({
+          method: "eth_sendTransaction",
+          params: [request],
+        });
+
+        setStatus(
+          `Transaction sent.\n\nTx hash: ${txHash}\n\nPaste this hash back into the terminal wizard or submit it to the backend.`,
+          "good"
+        );
+      }
+
+      parseBtn.addEventListener("click", () => {
+        try {
+          parseInput();
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        }
+      });
+
+      connectBtn.addEventListener("click", async () => {
+        try {
+          await connectWallet();
+          setStatus(`Connected wallet: ${connectedAccount}`, "good");
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        }
+      });
+
+      approveBtn.addEventListener("click", async () => {
+        approveBtn.disabled = true;
+        try {
+          await approveToken();
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        } finally {
+          approveBtn.disabled = false;
+        }
+      });
+
+      sendBtn.addEventListener("click", async () => {
+        sendBtn.disabled = true;
+        try {
+          await sendTransaction();
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,59 @@
+{
+  "collateralToken": "0x0000000000000000000000000000000000000000",
+  "createAccount": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "abi": [
+      {
+        "type": "function",
+        "name": "createAccountFor",
+        "stateMutability": "nonpayable",
+        "inputs": [
+          {
+            "name": "user",
+            "type": "address"
+          }
+        ],
+        "outputs": []
+      }
+    ],
+    "functionName": "createAccountFor",
+    "args": [
+      "{{userAddress}}"
+    ]
+  },
+  "approval": {
+    "spender": "0x0000000000000000000000000000000000000000",
+    "amountMode": "exact"
+  },
+  "deposit": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "abi": [
+      {
+        "type": "function",
+        "name": "depositFor",
+        "stateMutability": "nonpayable",
+        "inputs": [
+          {
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "outputs": []
+      }
+    ],
+    "functionName": "depositFor",
+    "args": [
+      "{{userAddress}}",
+      "{{collateralToken}}",
+      "{{receivedAmount}}"
+    ]
+  }
+}

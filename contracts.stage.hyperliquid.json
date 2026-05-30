@@ -1,0 +1,139 @@
+{
+  "collateralToken": "0x6aA554A167864027A02051D3F5C553244439B7Fd",
+  "context": {
+    "affiliateAddress": "0x98490Efdd691ab58601302F98E1492DC28eCAA56",
+    "symmioAddress": "0x99641E06d38F327166b3a48f86Ca2cbB3B4fB7EB",
+    "subAccountIsolationType": 3,
+    "subAccountMetadata": "0x",
+    "subAccountSingleVAMode": false,
+    "subAccountNamePrefix": "gasless-"
+  },
+  "createAccount": {
+    "address": "0x812e98F31A4EfFC09dD82e6e87ff7456151a0dFB",
+    "abi": [
+      {
+        "type": "event",
+        "name": "SubAccountCreated",
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "name": "affiliate",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "name": "createSubAccountsFor",
+        "stateMutability": "nonpayable",
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "name": "affiliate",
+            "type": "address"
+          },
+          {
+            "name": "accountsData",
+            "type": "tuple[]",
+            "components": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "metadata",
+                "type": "bytes"
+              },
+              {
+                "name": "symmioCore",
+                "type": "address"
+              },
+              {
+                "name": "isolationType",
+                "type": "uint8"
+              },
+              {
+                "name": "singleVAMode",
+                "type": "bool"
+              }
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "functionName": "createSubAccountsFor",
+    "args": [
+      "{{userAddress}}",
+      "{{affiliateAddress}}",
+      [
+        {
+          "name": "{{subAccountName}}",
+          "metadata": "{{subAccountMetadata}}",
+          "symmioCore": "{{symmioAddress}}",
+          "isolationType": "{{subAccountIsolationType}}",
+          "singleVAMode": "{{subAccountSingleVAMode}}"
+        }
+      ]
+    ],
+    "capture": {
+      "eventName": "SubAccountCreated",
+      "field": "account",
+      "storeAs": "createdAccountAddress"
+    }
+  },
+  "approval": {
+    "spender": "0x99641E06d38F327166b3a48f86Ca2cbB3B4fB7EB",
+    "amountMode": "exact"
+  },
+  "deposit": {
+    "address": "0x99641E06d38F327166b3a48f86Ca2cbB3B4fB7EB",
+    "abi": [
+      {
+        "type": "function",
+        "name": "depositFor",
+        "stateMutability": "nonpayable",
+        "inputs": [
+          {
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "outputs": []
+      }
+    ],
+    "functionName": "depositFor",
+    "args": [
+      "{{createdAccountAddress}}",
+      "{{receivedAmount}}"
+    ]
+  }
+}
