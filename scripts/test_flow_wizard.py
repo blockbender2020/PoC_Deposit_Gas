@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 from frontend_cli import (
     DEFAULT_BASE_URL,
     DEFAULT_STATE_FILE,
+    DEFAULT_USER_AGENT,
     FINAL_STATUSES,
     ApiClient,
     load_state,
@@ -33,6 +34,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_STATE_FILE,
         help=f"Local file used to remember the last intent ID. Default: {DEFAULT_STATE_FILE}",
+    )
+    parser.add_argument(
+        "--user-agent",
+        default=DEFAULT_USER_AGENT,
+        help="HTTP User-Agent header for backend requests.",
     )
     parser.add_argument(
         "--interval",
@@ -263,7 +269,7 @@ def main() -> int:
     state = load_state(args.state_file)
     chain = ask_chain()
     base_url = ask("Backend base URL", default=args.base_url)
-    client = ApiClient(base_url)
+    client = ApiClient(base_url, user_agent=args.user_agent)
 
     try:
         health = client.get("/health")

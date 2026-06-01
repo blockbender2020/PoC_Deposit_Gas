@@ -10,6 +10,14 @@ With `uv`:
 uv run --with-requirements requirements.txt scripts/test_flow_wizard.py
 ```
 
+If the backend is behind Cloudflare or another edge proxy that blocks Python's default `urllib` user agent, pass a browser-like header:
+
+```bash
+uv run --with-requirements requirements.txt scripts/test_flow_wizard.py \
+  --base-url https://gasless.enigma.bz \
+  --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+```
+
 If you want to execute a returned LI.FI quote from Rabby, use `rabby_lifi_sender.html`:
 
 1. Serve the `scripts/` directory locally:
@@ -47,6 +55,8 @@ Remote backend:
 python3 scripts/frontend_cli.py --base-url https://your-server.example health
 python3 scripts/frontend_cli.py --base-url https://your-server.example create-intent ...
 ```
+
+For proxies that block Python's default `urllib` user agent, add `--user-agent "Mozilla/5.0 ..."` or set `FRONTEND_CLI_USER_AGENT`.
 
 Notes:
 

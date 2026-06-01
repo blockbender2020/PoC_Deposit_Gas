@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -14,11 +15,20 @@ from urllib.request import Request, urlopen
 DEFAULT_BASE_URL = "http://127.0.0.1:3000"
 DEFAULT_STATE_FILE = Path("storage/frontend-client-state.json")
 FINAL_STATUSES = {"COMPLETED", "FAILED"}
+DEFAULT_USER_AGENT = os.environ.get(
+    "FRONTEND_CLI_USER_AGENT",
+    (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/137.0.0.0 Safari/537.36"
+    ),
+)
 
 
 class ApiClient:
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, *, user_agent: Optional[str] = None) -> None:
         self.base_url = base_url.rstrip("/")
+        self.user_agent = user_agent or DEFAULT_USER_AGENT
 
     def get(self, path: str) -> Any:
         return self._request("GET", path)
@@ -32,7 +42,11 @@ class ApiClient:
             f"{self.base_url}{path}",
             method=method,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": self.user_agent,
+            },
         )
 
         try:
@@ -67,6 +81,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_STATE_FILE,
         help=f"Local file used to remember the last intent ID. Default: {DEFAULT_STATE_FILE}",
+    )
+    parser.add_argument(
+        "--user-agent",
+        default=DEFAULT_USER_AGENT,
+        help="HTTP User-Agent header for backend requests.",
     )
     parser.add_argument(
         "--raw",
@@ -230,7 +249,7 @@ def print_create_direct_intent_help(intent: Dict[str, Any]) -> None:
 def main() -> int:
     args = parse_args()
     state = load_state(args.state_file)
-    client = ApiClient(args.base_url)
+    client = ApiClient(args.base_url, user_agent=args.user_agent)
 
     try:
         if args.command == "health":
