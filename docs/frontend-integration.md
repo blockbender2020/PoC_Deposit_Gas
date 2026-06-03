@@ -14,6 +14,8 @@ Your frontend should talk to the backend root, for example:
 - Local: `http://127.0.0.1:3000`
 - Remote: `https://gasless.enigma.bz`
 
+Use `https://` for the deployed host. `http://gasless.enigma.bz` returns a proxy `502`.
+
 There is no HTML app at `/`. The API starts at:
 
 - `GET /health`

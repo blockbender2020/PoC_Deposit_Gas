@@ -193,7 +193,7 @@ python3 scripts/frontend_cli.py submit-source-tx --tx-hash 0xYourBridgeTxHash
 python3 scripts/frontend_cli.py poll
 ```
 
-For a remote backend, add `--base-url https://your-server.example`.
+For a remote backend, add `--base-url https://your-server.example`. Use `https://gasless.enigma.bz` for the deployed host; plain `http://gasless.enigma.bz` returns a proxy `502`.
 
 The CLI defaults `subAccountName` to `gasless-<sub-account-id>` for testing. Real frontend integrations should send the user-provided name explicitly.
 

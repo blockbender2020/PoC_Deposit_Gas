@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 
@@ -40,6 +41,16 @@ class ApiClient:
     def post(self, path: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         return self._request("POST", path, payload or {})
 
+    def _https_hint(self) -> Optional[str]:
+        parts = urlsplit(self.base_url)
+        hostname = (parts.hostname or "").lower()
+        if parts.scheme != "http":
+            return None
+        if hostname in {"127.0.0.1", "localhost", "0.0.0.0"}:
+            return None
+        https_url = urlunsplit(("https", parts.netloc, parts.path, parts.query, parts.fragment))
+        return f"Remote deployments usually require HTTPS. Try {https_url}"
+
     def _request(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         data = None if payload is None else json.dumps(payload).encode()
         request = Request(
@@ -58,12 +69,17 @@ class ApiClient:
                 raw = response.read().decode()
                 return json.loads(raw) if raw else {}
         except HTTPError as exc:
-            body = exc.read().decode()
+            body = exc.read().decode(errors="replace")
             try:
                 parsed = json.loads(body) if body else {}
             except ValueError:
                 parsed = body
             message = parsed.get("error") if isinstance(parsed, dict) else parsed
+            if not message:
+                message = "Response body was empty"
+            https_hint = self._https_hint()
+            if https_hint and exc.code >= 500:
+                message = f"{message}. {https_hint}"
             raise RuntimeError(f"HTTP {exc.code}: {message}") from exc
         except URLError as exc:
             raise RuntimeError(f"Could not reach backend at {self.base_url}: {exc.reason}") from exc

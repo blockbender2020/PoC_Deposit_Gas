@@ -18,6 +18,8 @@ uv run --with-requirements requirements.txt scripts/test_flow_wizard.py \
   --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
 ```
 
+For the deployed host, use `https://gasless.enigma.bz`. Plain `http://gasless.enigma.bz` sits behind Cloudflare and returns `502`.
+
 If you want to execute a returned LI.FI quote from Rabby, use `rabby_lifi_sender.html`:
 
 1. Serve the `scripts/` directory locally:
