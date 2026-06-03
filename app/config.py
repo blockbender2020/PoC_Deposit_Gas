@@ -30,7 +30,8 @@ class AppConfig:
     contract_config_path: Path
     min_collateral_amount: int
     min_gas_balance_wei: int
-    persistence_file: Path
+    database_path: Path
+    legacy_persistence_file: Optional[Path]
     poll_interval_ms: int
     contract_config: Dict[str, Any]
 
@@ -73,6 +74,25 @@ def load_config() -> AppConfig:
         raise RuntimeError("ESCROW_MNEMONIC is required when ESCROW_STRATEGY=perUser")
 
     contract_config_path = Path(_env("CONTRACT_CONFIG_PATH", "./contracts.example.json")).resolve()
+    legacy_persistence_env = os.getenv("PERSISTENCE_FILE")
+    database_path_env = os.getenv("DATABASE_PATH")
+
+    legacy_persistence_file = Path(legacy_persistence_env).resolve() if legacy_persistence_env else None
+    if database_path_env:
+        database_path = Path(database_path_env).resolve()
+    elif legacy_persistence_file:
+        database_path = (
+            legacy_persistence_file
+            if legacy_persistence_file.suffix.lower() == ".db"
+            else legacy_persistence_file.with_suffix(".db")
+        )
+    else:
+        database_path = Path("./storage/intents.db").resolve()
+
+    if legacy_persistence_file and (
+        legacy_persistence_file == database_path or legacy_persistence_file.suffix.lower() == ".db"
+    ):
+        legacy_persistence_file = None
 
     return AppConfig(
         port=int(_env("PORT", "3000")),
@@ -90,7 +110,8 @@ def load_config() -> AppConfig:
         contract_config_path=contract_config_path,
         min_collateral_amount=int(_env("MIN_COLLATERAL_AMOUNT")),
         min_gas_balance_wei=int(_env("MIN_GAS_BALANCE_WEI", "1000000000000000")),
-        persistence_file=Path(_env("PERSISTENCE_FILE", "./storage/intents.json")).resolve(),
+        database_path=database_path,
+        legacy_persistence_file=legacy_persistence_file,
         poll_interval_ms=int(_env("POLL_INTERVAL_MS", "15000")),
         contract_config=_load_contract_config(contract_config_path),
     )

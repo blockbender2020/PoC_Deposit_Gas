@@ -44,6 +44,7 @@ python3 scripts/frontend_cli.py create-intent \
   --from-amount 25000000 \
   --from-amount-for-gas 1000000 \
   --sub-account-id 0 \
+  --sub-account-name gasless-0 \
   --slippage 0.005
 python3 scripts/frontend_cli.py submit-source-tx --tx-hash 0xYourBridgeTxHash
 python3 scripts/frontend_cli.py poll
@@ -70,7 +71,8 @@ Direct HyperEVM frontend flow through the API client:
 python3 scripts/frontend_cli.py create-direct-intent \
   --user-address 0xYourWallet \
   --amount 20000000000000000000 \
-  --sub-account-id 0
+  --sub-account-id 0 \
+  --sub-account-name gasless-0
 python3 scripts/frontend_cli.py submit-direct-tx --tx-hash 0xYourHyperEvmTransferTx
 python3 scripts/frontend_cli.py poll
 ```
@@ -81,9 +83,12 @@ Deposit-only mode with an existing subaccount:
 python3 scripts/frontend_cli.py create-direct-intent \
   --user-address 0xYourWallet \
   --amount 20000000000000000000 \
+  --sub-account-name gasless-0 \
   --create-account false \
   --target-account-address 0xExistingSubaccount
 ```
+
+The CLI and wizard default `subAccountName` to `gasless-<sub-account-id>` for testing. Real frontend integrations should send the user-provided name explicitly.
 
 ## Manual HyperEVM Test
 

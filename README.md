@@ -49,6 +49,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 3000
 ```
 
+## Persistence
+
+Intent persistence now uses SQLite instead of a JSON file.
+
+- Default database path: `./storage/intents.db`
+- Configure it with `DATABASE_PATH`
+- The Docker volume in `compose.yaml` already persists the `storage/` directory, so the SQLite database file will survive restarts
+
+Legacy upgrade behavior:
+
+- If `PERSISTENCE_FILE` points to an existing JSON file and the SQLite database is empty, the service imports those intents once during startup
+- If `PERSISTENCE_FILE` already points to a `.db` file, it is treated as the database path instead of a legacy JSON source
+
+This change removes the previous read/write race on the JSON persistence file and gives the service transactional storage.
+
 ## Contract config
 
 The exact Symmio ABI is not present in this repo, so the service is config-driven.
@@ -73,6 +88,7 @@ Template variables available in `args` and `value`:
 - `{{receivedAmount}}`
 - `{{minimumAmount}}`
 - `{{subAccountId}}`
+- `{{subAccountName}}`
 - `{{sourceChainId}}`
 - `{{sourceTxHash}}`
 
@@ -95,12 +111,15 @@ Creates an intent and returns the LI.FI quote plus the HyperEVM escrow address.
   "sourceTokenAddress": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   "fromAmount": "25000000",
   "subAccountId": "0",
+  "subAccountName": "alice-main",
   "createAccount": true,
   "targetAccountAddress": null,
   "fromAmountForGas": "1000000",
   "slippage": 0.005
 }
 ```
+
+`subAccountName` is optional. If omitted, the backend falls back to `gasless-<subAccountId>` for backward compatibility and test tooling.
 
 ### `POST /v1/intents/{intent_id}/source-tx`
 
@@ -121,6 +140,7 @@ Creates a direct HyperEVM funding intent. The backend returns the escrow address
   "userAddress": "0x...",
   "amount": "20000000000000000000",
   "subAccountId": "0",
+  "subAccountName": "alice-main",
   "createAccount": true,
   "targetAccountAddress": null
 }
@@ -167,12 +187,15 @@ python3 scripts/frontend_cli.py create-intent \
   --from-amount 25000000 \
   --from-amount-for-gas 1000000 \
   --sub-account-id 0 \
+  --sub-account-name gasless-0 \
   --slippage 0.005
 python3 scripts/frontend_cli.py submit-source-tx --tx-hash 0xYourBridgeTxHash
 python3 scripts/frontend_cli.py poll
 ```
 
 For a remote backend, add `--base-url https://your-server.example`.
+
+The CLI defaults `subAccountName` to `gasless-<sub-account-id>` for testing. Real frontend integrations should send the user-provided name explicitly.
 
 The client stores the last `intent_id` in `storage/frontend-client-state.json`, so `poll`, `process`, and `get-intent` can be run without passing `--intent-id` each time.
 

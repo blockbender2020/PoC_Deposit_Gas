@@ -67,6 +67,10 @@ def parse_args() -> argparse.Namespace:
         help="Optional sub-account ID. If omitted, a unique manual ID is generated.",
     )
     run.add_argument(
+        "--sub-account-name",
+        help="Optional sub-account name. Default: gasless-<sub-account-id>.",
+    )
+    run.add_argument(
         "--source-tx-hash",
         default="0x" + "11" * 32,
         help="Dummy tx hash stored on the manual intent. Default: 0x1111...1111",
@@ -79,7 +83,14 @@ def print_json(data: Any) -> None:
     print(json.dumps(data, indent=2))
 
 
-def build_manual_intent(*, user_address: str, received_amount: str, sub_account_id: str, source_tx_hash: str) -> GaslessIntent:
+def build_manual_intent(
+    *,
+    user_address: str,
+    received_amount: str,
+    sub_account_id: str,
+    sub_account_name: str,
+    source_tx_hash: str,
+) -> GaslessIntent:
     store.initialize()
     existing = store.list()
     escrow_address, escrow_wallet_index = escrow_manager.assign_address(existing)
@@ -95,6 +106,7 @@ def build_manual_intent(*, user_address: str, received_amount: str, sub_account_
         quotedDestinationAmount=received_amount,
         minimumAmount=str(config.min_collateral_amount),
         subAccountId=sub_account_id,
+        subAccountName=sub_account_name,
         escrowStrategy="shared" if escrow_wallet_index is None else "perUser",
         escrowAddress=escrow_address,
         escrowWalletIndex=escrow_wallet_index,
@@ -190,6 +202,7 @@ def main() -> int:
                 source_tx_hash=args.source_tx_hash,
             )
             sub_account_id = args.sub_account_id or f"manual-{uuid4().hex[:8]}"
+            sub_account_name = args.sub_account_name or f"gasless-{sub_account_id}"
             info = get_escrow_info()
             if int(args.received_amount) < config.min_collateral_amount:
                 raise RuntimeError(
@@ -204,6 +217,7 @@ def main() -> int:
                 user_address=args.user_address,
                 received_amount=args.received_amount,
                 sub_account_id=sub_account_id,
+                sub_account_name=sub_account_name,
                 source_tx_hash=args.source_tx_hash,
             )
             store.create(intent)
@@ -215,6 +229,7 @@ def main() -> int:
             else:
                 print(f"intent_id: {final_intent['id']}")
                 print(f"sub_account_id: {final_intent['subAccountId']}")
+                print(f"sub_account_name: {final_intent.get('subAccountName')}")
                 print(f"escrow_address: {final_intent['escrowAddress']}")
                 print(f"received_amount: {final_intent['receivedAmount']}")
                 print(f"status: {final_intent['status']}")

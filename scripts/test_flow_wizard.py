@@ -14,6 +14,7 @@ from frontend_cli import (
     DEFAULT_USER_AGENT,
     FINAL_STATUSES,
     ApiClient,
+    default_sub_account_name,
     load_state,
     print_intent_summary,
     save_state,
@@ -140,6 +141,7 @@ def run_direct_flow(
         default=health["minCollateralAmount"],
     )
     sub_account_id = ask("Sub-account ID", default="0")
+    sub_account_name = ask("Sub-account name", default=default_sub_account_name(sub_account_id))
     create_account = ask("Create a new account? Enter `yes` or `no`", default="yes").strip().lower() in {"yes", "y"}
     target_account_address = None if create_account else ask("Existing subaccount address")
 
@@ -147,6 +149,7 @@ def run_direct_flow(
         "userAddress": user_address,
         "amount": amount,
         "subAccountId": sub_account_id,
+        "subAccountName": sub_account_name,
         "createAccount": create_account,
     }
     if target_account_address:
@@ -201,6 +204,7 @@ def run_bridge_flow(
     from_amount = ask("Source token amount in smallest units")
     from_amount_for_gas = ask("Optional amount for gas in smallest units", allow_empty=True)
     sub_account_id = ask("Sub-account ID", default="0")
+    sub_account_name = ask("Sub-account name", default=default_sub_account_name(sub_account_id))
     create_account = ask("Create a new account? Enter `yes` or `no`", default="yes").strip().lower() in {"yes", "y"}
     target_account_address = None if create_account else ask("Existing subaccount address")
     slippage = ask("Slippage", default="0.005")
@@ -211,6 +215,7 @@ def run_bridge_flow(
         "sourceTokenAddress": source_token_address,
         "fromAmount": from_amount,
         "subAccountId": sub_account_id,
+        "subAccountName": sub_account_name,
         "createAccount": create_account,
         "slippage": float(slippage),
     }

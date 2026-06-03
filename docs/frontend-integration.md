@@ -65,6 +65,7 @@ Request body:
   "sourceTokenAddress": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   "fromAmount": "25000000",
   "subAccountId": "0",
+  "subAccountName": "alice-main",
   "createAccount": true,
   "targetAccountAddress": null,
   "fromAmountForGas": "1000000",
@@ -79,6 +80,7 @@ Field notes:
 - `sourceTokenAddress`: the token on the source chain.
 - `fromAmount`: source token amount in smallest units.
 - `subAccountId`: forwarded into the on-chain execution context.
+- `subAccountName`: the frontend-provided subaccount name to use during account creation.
 - `createAccount`: if `true`, the backend creates the target account before deposit.
 - `targetAccountAddress`: required when `createAccount` is `false`.
 - `fromAmountForGas`: optional LI.FI gas-on-destination parameter.
@@ -91,6 +93,8 @@ Validation rules enforced by the backend:
 - `fromAmount` and `fromAmountForGas` must be integer strings.
 - `targetAccountAddress` is required when `createAccount` is `false`.
 - The LI.FI quoted destination amount must be at least `minCollateralAmount`.
+
+`subAccountName` is optional for backward compatibility, but frontend integrations should send it explicitly. If omitted, the backend falls back to `gasless-<subAccountId>`.
 
 ### 2. Use the returned quote
 
@@ -158,6 +162,7 @@ Request body:
   "userAddress": "0x...",
   "amount": "20000000000000000000",
   "subAccountId": "0",
+  "subAccountName": "alice-main",
   "createAccount": true,
   "targetAccountAddress": null
 }
@@ -166,6 +171,7 @@ Request body:
 Field notes:
 
 - `amount` is the HyperEVM collateral token amount in smallest units.
+- `subAccountName` is the name that will be used if the backend creates a new subaccount.
 - The backend rejects values below `minCollateralAmount`.
 - If `createAccount` is `false`, `targetAccountAddress` is required.
 
@@ -243,6 +249,7 @@ type GaslessIntent = {
   quotedDestinationAmount: string;
   minimumAmount: string;
   subAccountId: string;
+  subAccountName?: string | null;
   escrowStrategy: "shared" | "perUser";
   escrowAddress: string;
   escrowWalletIndex: number | null;
@@ -397,6 +404,7 @@ async function getIntent(baseUrl: string, intentId: string) {
 - Validate addresses client-side before submit.
 - Convert token amounts to smallest units before calling the backend.
 - Persist `intent.id` locally so the user can resume progress after refresh.
+- Send `subAccountName` explicitly from the frontend instead of relying on the backend fallback.
 - Persist the wallet tx hash until the backend confirms it.
 - Poll until `COMPLETED` or `FAILED`.
 - Show `history` as the source of truth for progress updates.

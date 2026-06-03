@@ -23,7 +23,10 @@ from app.store import IntentStore
 
 
 config = load_config()
-store = IntentStore(config.persistence_file)
+store = IntentStore(
+    config.database_path,
+    legacy_file_path=config.legacy_persistence_file,
+)
 lifi_client = LiFiClient(
     base_url=config.lifi_base_url,
     api_key=config.lifi_api_key,

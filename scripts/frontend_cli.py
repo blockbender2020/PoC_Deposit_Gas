@@ -25,6 +25,10 @@ DEFAULT_USER_AGENT = os.environ.get(
 )
 
 
+def default_sub_account_name(sub_account_id: str) -> str:
+    return f"gasless-{sub_account_id}"
+
+
 class ApiClient:
     def __init__(self, base_url: str, *, user_agent: Optional[str] = None) -> None:
         self.base_url = base_url.rstrip("/")
@@ -104,6 +108,7 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--source-token-address", required=True)
     create.add_argument("--from-amount", required=True)
     create.add_argument("--sub-account-id", default="0")
+    create.add_argument("--sub-account-name")
     create.add_argument("--create-account", choices=["true", "false"], default="true")
     create.add_argument("--target-account-address")
     create.add_argument("--from-amount-for-gas")
@@ -113,6 +118,7 @@ def parse_args() -> argparse.Namespace:
     create_direct.add_argument("--user-address", required=True)
     create_direct.add_argument("--amount", required=True)
     create_direct.add_argument("--sub-account-id", default="0")
+    create_direct.add_argument("--sub-account-name")
     create_direct.add_argument("--create-account", choices=["true", "false"], default="true")
     create_direct.add_argument("--target-account-address")
 
@@ -183,6 +189,8 @@ def print_intent_summary(intent: Dict[str, Any]) -> None:
     print(f"from_amount: {intent['fromAmount']}")
     print(f"quoted_destination_amount: {intent['quotedDestinationAmount']}")
     print(f"minimum_amount: {intent['minimumAmount']}")
+    if intent.get("subAccountName"):
+        print(f"sub_account_name: {intent['subAccountName']}")
     print(f"create_account: {intent.get('createAccount')}")
     if intent.get("targetAccountAddress"):
         print(f"target_account_address: {intent['targetAccountAddress']}")
@@ -276,6 +284,7 @@ def main() -> int:
                 "sourceTokenAddress": args.source_token_address,
                 "fromAmount": args.from_amount,
                 "subAccountId": args.sub_account_id,
+                "subAccountName": args.sub_account_name or default_sub_account_name(args.sub_account_id),
                 "createAccount": args.create_account == "true",
             }
             if args.target_account_address is not None:
@@ -302,6 +311,7 @@ def main() -> int:
                 "userAddress": args.user_address,
                 "amount": args.amount,
                 "subAccountId": args.sub_account_id,
+                "subAccountName": args.sub_account_name or default_sub_account_name(args.sub_account_id),
                 "createAccount": args.create_account == "true",
             }
             if args.target_account_address is not None:

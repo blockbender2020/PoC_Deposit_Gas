@@ -41,6 +41,7 @@ class GaslessIntent(BaseModel):
     quotedDestinationAmount: str
     minimumAmount: str
     subAccountId: str
+    subAccountName: Optional[str] = None
     escrowStrategy: EscrowStrategy
     escrowAddress: str
     escrowWalletIndex: Optional[int] = None
@@ -67,6 +68,7 @@ class CreateIntentRequest(BaseModel):
     sourceTokenAddress: str
     fromAmount: str
     subAccountId: str = "0"
+    subAccountName: Optional[str] = None
     createAccount: bool = True
     targetAccountAddress: Optional[str] = None
     fromAmountForGas: Optional[str] = None
@@ -81,6 +83,7 @@ class CreateDirectIntentRequest(BaseModel):
     userAddress: str
     amount: str
     subAccountId: str = "0"
+    subAccountName: Optional[str] = None
     createAccount: bool = True
     targetAccountAddress: Optional[str] = None
 

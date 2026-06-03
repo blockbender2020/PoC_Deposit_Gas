@@ -99,6 +99,10 @@ class IntentService:
         self._parse_int(payload.fromAmount, "fromAmount")
         if payload.fromAmountForGas is not None:
             self._parse_int(payload.fromAmountForGas, "fromAmountForGas")
+        sub_account_name = self._resolve_sub_account_name(
+            sub_account_id=payload.subAccountId,
+            requested_name=payload.subAccountName,
+        )
 
         existing = self.store.list()
         escrow_address, escrow_wallet_index = self.escrow_manager.assign_address(existing)
@@ -131,6 +135,7 @@ class IntentService:
             quotedDestinationAmount=quoted_destination_amount,
             minimumAmount=str(self.min_collateral_amount),
             subAccountId=payload.subAccountId,
+            subAccountName=sub_account_name,
             escrowStrategy="shared" if escrow_wallet_index is None else "perUser",
             escrowAddress=escrow_address,
             escrowWalletIndex=escrow_wallet_index,
@@ -164,6 +169,10 @@ class IntentService:
                 400,
                 f"Amount {payload.amount} is below the minimum collateral {self.min_collateral_amount}",
             )
+        sub_account_name = self._resolve_sub_account_name(
+            sub_account_id=payload.subAccountId,
+            requested_name=payload.subAccountName,
+        )
 
         existing = self.store.list()
         escrow_address, escrow_wallet_index = self.escrow_manager.assign_address(existing)
@@ -185,6 +194,7 @@ class IntentService:
             quotedDestinationAmount=payload.amount,
             minimumAmount=str(self.min_collateral_amount),
             subAccountId=payload.subAccountId,
+            subAccountName=sub_account_name,
             escrowStrategy="shared" if escrow_wallet_index is None else "perUser",
             escrowAddress=escrow_address,
             escrowWalletIndex=escrow_wallet_index,
@@ -595,7 +605,6 @@ class IntentService:
 
     def _build_execution_context(self, intent: GaslessIntent) -> Dict[str, Any]:
         static_context = dict(self.contract_config.get("context", {}))
-        name_prefix = static_context.get("subAccountNamePrefix", "gasless-")
         effective_account_address = intent.createdAccountAddress or intent.targetAccountAddress
         context = {
             "userAddress": intent.userAddress,
@@ -604,13 +613,27 @@ class IntentService:
             "receivedAmount": int(intent.receivedAmount or "0"),
             "minimumAmount": int(intent.minimumAmount),
             "subAccountId": intent.subAccountId,
-            "subAccountName": f"{name_prefix}{intent.subAccountId}",
+            "subAccountName": self._resolve_sub_account_name(
+                sub_account_id=intent.subAccountId,
+                requested_name=intent.subAccountName,
+            ),
             "sourceChainId": intent.sourceChainId,
             "sourceTxHash": intent.sourceTxHash,
             "createdAccountAddress": effective_account_address,
             **static_context,
         }
         return context
+
+    def _resolve_sub_account_name(self, *, sub_account_id: str, requested_name: Optional[str]) -> str:
+        if requested_name is not None:
+            normalized = requested_name.strip()
+            if not normalized:
+                raise HttpError(400, "subAccountName must not be empty")
+            return normalized
+
+        static_context = dict(self.contract_config.get("context", {}))
+        name_prefix = static_context.get("subAccountNamePrefix", "gasless-")
+        return f"{name_prefix}{sub_account_id}"
 
     @staticmethod
     def _validate_account_target(*, create_account: bool, target_account_address: Optional[str]) -> Optional[str]:
