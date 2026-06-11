@@ -135,7 +135,7 @@ def run_direct_flow(
 ) -> int:
     print()
     print("direct HyperEVM flow selected")
-    user_address = ask("User wallet address")
+    owner_account_address = ask("Hyper account owner address")
     amount = ask(
         "Funding amount in collateral token smallest units",
         default=health["minCollateralAmount"],
@@ -146,7 +146,7 @@ def run_direct_flow(
     target_account_address = None if create_account else ask("Existing subaccount address")
 
     payload: Dict[str, Any] = {
-        "userAddress": user_address,
+        "ownerAccountAddress": owner_account_address,
         "amount": amount,
         "subAccountId": sub_account_id,
         "subAccountName": sub_account_name,
@@ -198,7 +198,16 @@ def run_bridge_flow(
 ) -> int:
     print()
     print("LI.FI bridge flow selected")
-    user_address = ask("User wallet address")
+    source_wallet_type = ask("Source wallet type (`evm` for Rabby/MetaMask, `solana` for Phantom)", default="evm").strip().lower()
+    if source_wallet_type not in {"evm", "solana"}:
+        raise RuntimeError("Source wallet type must be `evm` or `solana`")
+    if source_wallet_type == "solana":
+        print("Use your Phantom wallet for the source-side bridge transaction.")
+        source_wallet_address = ask("Source wallet address (Phantom)")
+    else:
+        print("Use Rabby or another EVM wallet for the source-side bridge transaction.")
+        source_wallet_address = ask("Source wallet address (Rabby/EVM)")
+    owner_account_address = ask("Hyper account owner address")
     source_chain_id = ask("Source chain ID, for example 42161 for Arbitrum")
     source_token_address = ask("Source token address")
     from_amount = ask("Source token amount in smallest units")
@@ -210,7 +219,9 @@ def run_bridge_flow(
     slippage = ask("Slippage", default="0.005")
 
     payload: Dict[str, Any] = {
-        "userAddress": user_address,
+        "sourceWalletType": source_wallet_type,
+        "sourceWalletAddress": source_wallet_address,
+        "ownerAccountAddress": owner_account_address,
         "sourceChainId": int(source_chain_id),
         "sourceTokenAddress": source_token_address,
         "fromAmount": from_amount,
@@ -237,7 +248,10 @@ def run_bridge_flow(
     quote = intent.get("quote") or {}
     print()
     print("what to do now:")
-    print("1. Execute the returned LI.FI quote from your wallet.")
+    if source_wallet_type == "solana":
+        print("1. Execute the returned LI.FI quote from Phantom.")
+    else:
+        print("1. Execute the returned LI.FI quote from Rabby or another EVM wallet.")
     print(f"2. The destination escrow is {intent['escrowAddress']}.")
     if intent.get("createAccount") is False:
         print(f"3. The backend will skip account creation and deposit into existing subaccount {intent['targetAccountAddress']}.")
@@ -254,9 +268,9 @@ def run_bridge_flow(
             "transactionRequest": quote.get("transactionRequest"),
         }
     )
-    tx_hash = ask("Paste the mined source-chain tx hash")
+    tx_hash = ask("Paste the mined source-chain transaction id")
 
-    result = client.post(f"/v1/intents/{intent['id']}/source-tx", {"txHash": tx_hash})
+    result = client.post(f"/v1/intents/{intent['id']}/source-tx", {"sourceTxId": tx_hash})
     print()
     print("source tx registered")
     if raw:

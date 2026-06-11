@@ -98,7 +98,9 @@ def build_manual_intent(
 
     return GaslessIntent(
         id=str(uuid4()),
-        userAddress=Web3.to_checksum_address(user_address),
+        ownerAccountAddress=Web3.to_checksum_address(user_address),
+        sourceWalletType="evm",
+        sourceWalletAddress=Web3.to_checksum_address(user_address),
         sourceChainId=config.hyperevm_chain_id,
         sourceTokenAddress=config.contract_config["collateralToken"],
         destinationTokenAddress=config.contract_config["collateralToken"],
@@ -122,7 +124,7 @@ def build_manual_intent(
                 message="Manual HyperEVM funding test created without LI.FI",
             )
         ],
-        sourceTxHash=source_tx_hash,
+        sourceTxId=source_tx_hash,
         bridgeStatus="MANUAL_TEST",
         receivedAmount=received_amount,
     )

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rabby LI.FI Sender</title>
+    <title>EVM LI.FI Sender</title>
     <style>
       :root {
         --bg: #f4efe6;
@@ -172,10 +172,16 @@
   </head>
   <body>
     <div class="wrap">
-      <h1>Rabby LI.FI Sender</h1>
+      <h1>EVM LI.FI Sender</h1>
       <p class="intro">
         Paste either the whole backend intent JSON or just the nested LI.FI quote JSON. This page extracts
-        <code>quote.transactionRequest</code>, switches to the source chain when possible, and asks Rabby to send it.
+        <code>quote.transactionRequest</code>, switches to the source chain when possible, and asks an injected EVM wallet
+        such as Rabby or MetaMask to send it.
+      </p>
+      <p class="intro">
+        This helper is <strong>EVM-only</strong>. It does not support Phantom, Privy, or Solana transaction execution.
+        For Solana-origin intents, execute the source-side bridge in Phantom or your real frontend, then paste the
+        resulting Solana transaction id back into the terminal wizard.
       </p>
 
       <div class="grid">
@@ -186,7 +192,7 @@
 
           <div class="actions">
             <button id="parseBtn" class="secondary">Parse</button>
-            <button id="connectBtn" class="secondary">Connect Rabby</button>
+            <button id="connectBtn" class="secondary">Connect EVM Wallet</button>
             <button id="approveBtn" class="secondary" disabled>Approve Token</button>
             <button id="sendBtn" disabled>Send Transaction</button>
           </div>
@@ -217,7 +223,7 @@
           <textarea id="dataPreview" readonly></textarea>
 
           <p class="hint">
-            After Rabby returns a tx hash, paste it back into the terminal wizard or use the backend submit endpoint.
+            After the EVM wallet returns a tx hash, paste it back into the terminal wizard or use the backend submit endpoint.
           </p>
         </aside>
       </div>
@@ -266,7 +272,18 @@
       }
 
       function extractQuotePayload(raw) {
+        if (raw?.sourceWalletType === "solana") {
+          throw new Error(
+            "This helper is EVM-only. Your intent uses a Solana source wallet, so execute the route in Phantom or your real frontend and paste the Solana transaction id back into the wizard."
+          );
+        }
+
         if (raw?.quote?.transactionRequest) {
+          if (raw?.sourceWalletType === "solana") {
+            throw new Error(
+              "This helper is EVM-only. Your intent uses a Solana source wallet, so execute the route in Phantom or your real frontend and paste the Solana transaction id back into the wizard."
+            );
+          }
           return {
             quote: raw.quote,
             intent: raw,
@@ -280,7 +297,9 @@
           };
         }
 
-        throw new Error("Could not find quote.transactionRequest in the pasted JSON.");
+        throw new Error(
+          "Could not find quote.transactionRequest in the pasted JSON. This helper only supports EVM transactionRequest payloads."
+        );
       }
 
       function renderParsed() {
@@ -307,7 +326,7 @@
 
       async function connectWallet() {
         if (!window.ethereum) {
-          throw new Error("No injected wallet provider found. Open this page in the browser where Rabby is installed.");
+          throw new Error("No injected EVM wallet provider found. Open this page in the browser where Rabby or MetaMask is installed.");
         }
 
         const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -326,7 +345,7 @@
             params: [{ chainId: hexChainId }],
           });
         } catch (err) {
-          throw new Error(`Could not switch Rabby to chain ${chainId}: ${err.message || err}`);
+          throw new Error(`Could not switch the EVM wallet to chain ${chainId}: ${err.message || err}`);
         }
       }
 
@@ -341,7 +360,7 @@
         renderParsed();
         sendBtn.disabled = false;
         approveBtn.disabled = !(parsed.quote?.estimate?.approvalAddress && parsed.quote?.action?.fromToken?.address);
-        setStatus("Quote parsed. Connect Rabby, then send the transaction.", "good");
+        setStatus("EVM quote parsed. Connect Rabby or another EVM wallet, then send the transaction.", "good");
       }
 
       async function approveToken() {

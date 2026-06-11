@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 IntentStatus = Literal[
@@ -20,6 +20,7 @@ IntentStatus = Literal[
 
 EscrowStrategy = Literal["shared", "perUser"]
 IntentFlowType = Literal["bridge", "direct"]
+WalletType = Literal["evm", "solana"]
 
 
 class IntentEvent(BaseModel):
@@ -31,9 +32,11 @@ class IntentEvent(BaseModel):
 class GaslessIntent(BaseModel):
     id: str
     flowType: IntentFlowType = "bridge"
-    userAddress: str
+    ownerAccountAddress: str = Field(validation_alias=AliasChoices("ownerAccountAddress", "userAddress"))
     createAccount: bool = True
     targetAccountAddress: Optional[str] = None
+    sourceWalletType: WalletType = "evm"
+    sourceWalletAddress: str = Field(validation_alias=AliasChoices("sourceWalletAddress", "userAddress"))
     sourceChainId: int
     sourceTokenAddress: str
     destinationTokenAddress: str
@@ -51,7 +54,7 @@ class GaslessIntent(BaseModel):
     createdAt: str
     updatedAt: str
     history: List[IntentEvent]
-    sourceTxHash: Optional[str] = None
+    sourceTxId: Optional[str] = Field(default=None, validation_alias=AliasChoices("sourceTxId", "sourceTxHash"))
     bridgeStatus: Optional[str] = None
     receivedAmount: Optional[str] = None
     createdAccountAddress: Optional[str] = None
@@ -63,7 +66,12 @@ class GaslessIntent(BaseModel):
 
 
 class CreateIntentRequest(BaseModel):
-    userAddress: str
+    sourceWalletType: WalletType = "evm"
+    sourceWalletAddress: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("sourceWalletAddress", "userAddress"),
+    )
+    ownerAccountAddress: str = Field(validation_alias=AliasChoices("ownerAccountAddress", "userAddress"))
     sourceChainId: int
     sourceTokenAddress: str
     fromAmount: str
@@ -76,11 +84,11 @@ class CreateIntentRequest(BaseModel):
 
 
 class SubmitSourceTxRequest(BaseModel):
-    txHash: str
+    sourceTxId: str = Field(validation_alias=AliasChoices("sourceTxId", "txHash"))
 
 
 class CreateDirectIntentRequest(BaseModel):
-    userAddress: str
+    ownerAccountAddress: str = Field(validation_alias=AliasChoices("ownerAccountAddress", "userAddress"))
     amount: str
     subAccountId: str = "0"
     subAccountName: Optional[str] = None

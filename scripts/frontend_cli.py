@@ -119,7 +119,10 @@ def parse_args() -> argparse.Namespace:
     subparsers.add_parser("list-intents", help="Call GET /v1/intents")
 
     create = subparsers.add_parser("create-intent", help="Create a new intent")
-    create.add_argument("--user-address", required=True)
+    create.add_argument("--source-wallet-type", choices=["evm", "solana"], default="evm")
+    create.add_argument("--source-wallet-address")
+    create.add_argument("--owner-account-address")
+    create.add_argument("--user-address")
     create.add_argument("--source-chain-id", type=int, required=True)
     create.add_argument("--source-token-address", required=True)
     create.add_argument("--from-amount", required=True)
@@ -131,7 +134,8 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--slippage", type=float)
 
     create_direct = subparsers.add_parser("create-direct-intent", help="Create a direct HyperEVM funding intent")
-    create_direct.add_argument("--user-address", required=True)
+    create_direct.add_argument("--owner-account-address")
+    create_direct.add_argument("--user-address")
     create_direct.add_argument("--amount", required=True)
     create_direct.add_argument("--sub-account-id", default="0")
     create_direct.add_argument("--sub-account-name")
@@ -143,10 +147,11 @@ def parse_args() -> argparse.Namespace:
 
     submit = subparsers.add_parser(
         "submit-source-tx",
-        help="Attach the source-chain tx hash to an intent",
+        help="Attach the source-chain transaction id to an intent",
     )
     submit.add_argument("--intent-id")
-    submit.add_argument("--tx-hash", required=True)
+    submit.add_argument("--source-tx-id")
+    submit.add_argument("--tx-hash")
 
     submit_direct = subparsers.add_parser(
         "submit-direct-tx",
@@ -196,7 +201,9 @@ def print_json(data: Any) -> None:
 def print_intent_summary(intent: Dict[str, Any]) -> None:
     print(f"intent_id: {intent['id']}")
     print(f"status: {intent['status']}")
-    print(f"user_address: {intent['userAddress']}")
+    print(f"owner_account_address: {intent['ownerAccountAddress']}")
+    print(f"source_wallet_type: {intent['sourceWalletType']}")
+    print(f"source_wallet_address: {intent['sourceWalletAddress']}")
     print(f"escrow_address: {intent['escrowAddress']}")
     print(f"escrow_strategy: {intent['escrowStrategy']}")
     print(f"source_chain_id: {intent['sourceChainId']}")
@@ -212,7 +219,7 @@ def print_intent_summary(intent: Dict[str, Any]) -> None:
         print(f"target_account_address: {intent['targetAccountAddress']}")
 
     optional_fields = [
-        "sourceTxHash",
+        "sourceTxId",
         "bridgeStatus",
         "receivedAmount",
         "createdAccountAddress",
@@ -236,13 +243,14 @@ def print_intent_summary(intent: Dict[str, Any]) -> None:
 
 def print_create_intent_help(intent: Dict[str, Any]) -> None:
     quote = intent.get("quote") or {}
+    wallet_hint = "Phantom or another Solana wallet" if intent.get("sourceWalletType") == "solana" else "Rabby or another EVM wallet"
     print()
     print("next steps:")
-    print(f"1. Send the LI.FI bridge transaction from the user wallet to escrow {intent['escrowAddress']}.")
+    print(f"1. Send the LI.FI bridge transaction from {wallet_hint} to escrow {intent['escrowAddress']}.")
     if intent.get("createAccount") is False:
         print(f"   The backend will skip account creation and deposit into existing subaccount {intent['targetAccountAddress']}.")
-    print("2. After the wallet transaction is mined, submit the source tx hash:")
-    print(f"   python3 scripts/frontend_cli.py submit-source-tx --intent-id {intent['id']} --tx-hash 0x...")
+    print("2. After the wallet transaction is mined, submit the source transaction id:")
+    print(f"   python3 scripts/frontend_cli.py submit-source-tx --intent-id {intent['id']} --source-tx-id <tx-id>")
     print("3. Poll the intent until it reaches COMPLETED or FAILED:")
     print(f"   python3 scripts/frontend_cli.py poll --intent-id {intent['id']}")
     if quote:
@@ -270,6 +278,27 @@ def print_create_direct_intent_help(intent: Dict[str, Any]) -> None:
     print(f"   python3 scripts/frontend_cli.py poll --intent-id {intent['id']}")
 
 
+def resolve_owner_account_address(args: argparse.Namespace) -> str:
+    owner_account_address = getattr(args, "owner_account_address", None) or getattr(args, "user_address", None)
+    if not owner_account_address:
+        raise RuntimeError("Owner account address is required. Pass --owner-account-address.")
+    return owner_account_address
+
+
+def resolve_source_wallet_address(args: argparse.Namespace, owner_account_address: str) -> str:
+    source_wallet_address = getattr(args, "source_wallet_address", None) or getattr(args, "user_address", None)
+    if getattr(args, "source_wallet_type", "evm") == "solana" and not source_wallet_address:
+        raise RuntimeError("Source wallet address is required for Solana funding. Pass --source-wallet-address.")
+    return source_wallet_address or owner_account_address
+
+
+def resolve_source_tx_id(args: argparse.Namespace) -> str:
+    source_tx_id = getattr(args, "source_tx_id", None) or getattr(args, "tx_hash", None)
+    if not source_tx_id:
+        raise RuntimeError("Source transaction id is required. Pass --source-tx-id.")
+    return source_tx_id
+
+
 def main() -> int:
     args = parse_args()
     state = load_state(args.state_file)
@@ -294,8 +323,11 @@ def main() -> int:
             return 0
 
         if args.command == "create-intent":
+            owner_account_address = resolve_owner_account_address(args)
             payload = {
-                "userAddress": args.user_address,
+                "sourceWalletType": args.source_wallet_type,
+                "sourceWalletAddress": resolve_source_wallet_address(args, owner_account_address),
+                "ownerAccountAddress": owner_account_address,
                 "sourceChainId": args.source_chain_id,
                 "sourceTokenAddress": args.source_token_address,
                 "fromAmount": args.from_amount,
@@ -323,8 +355,9 @@ def main() -> int:
             return 0
 
         if args.command == "create-direct-intent":
+            owner_account_address = resolve_owner_account_address(args)
             payload = {
-                "userAddress": args.user_address,
+                "ownerAccountAddress": owner_account_address,
                 "amount": args.amount,
                 "subAccountId": args.sub_account_id,
                 "subAccountName": args.sub_account_name or default_sub_account_name(args.sub_account_id),
@@ -357,7 +390,7 @@ def main() -> int:
         if args.command == "submit-source-tx":
             intent = client.post(
                 f"/v1/intents/{intent_id}/source-tx",
-                {"txHash": args.tx_hash},
+                {"sourceTxId": resolve_source_tx_id(args)},
             )
             if args.raw:
                 print_json(intent)

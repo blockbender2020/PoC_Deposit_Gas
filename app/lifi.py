@@ -32,7 +32,7 @@ class LiFiClient:
             "fromToken": request["sourceTokenAddress"],
             "toToken": self.to_token_address,
             "fromAmount": request["fromAmount"],
-            "fromAddress": request["userAddress"],
+            "fromAddress": request["sourceWalletAddress"],
             "toAddress": to_address,
             "integrator": self.integrator,
             "allowDestinationCall": "false",

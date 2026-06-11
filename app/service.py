@@ -20,11 +20,12 @@ from app.models import (
     IntentStatus,
     SubmitDirectFundingTxRequest,
     SubmitSourceTxRequest,
+    WalletType,
 )
 from app.store import IntentStore
 
 
-TX_HASH_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
+EVM_TX_HASH_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
 
 
 def _now_iso() -> str:
@@ -87,10 +88,17 @@ class IntentService:
         return intent
 
     def create_intent(self, payload: CreateIntentRequest) -> GaslessIntent:
-        if not Web3.is_address(payload.userAddress):
-            raise HttpError(400, "userAddress must be a valid EVM address")
-        if not Web3.is_address(payload.sourceTokenAddress):
-            raise HttpError(400, "sourceTokenAddress must be a valid EVM address")
+        owner_account_address = self._validate_owner_account_address(payload.ownerAccountAddress)
+        if payload.sourceWalletType == "solana" and not payload.sourceWalletAddress:
+            raise HttpError(400, "sourceWalletAddress is required when sourceWalletType is solana")
+        source_wallet_address = self._validate_source_wallet_address(
+            payload.sourceWalletAddress or payload.ownerAccountAddress,
+            payload.sourceWalletType,
+        )
+        source_token_address = self._validate_source_token_address(
+            payload.sourceTokenAddress,
+            payload.sourceWalletType,
+        )
         target_account_address = self._validate_account_target(
             create_account=payload.createAccount,
             target_account_address=payload.targetAccountAddress,
@@ -107,8 +115,9 @@ class IntentService:
         existing = self.store.list()
         escrow_address, escrow_wallet_index = self.escrow_manager.assign_address(existing)
         request = payload.model_dump()
-        request["userAddress"] = Web3.to_checksum_address(payload.userAddress)
-        request["sourceTokenAddress"] = Web3.to_checksum_address(payload.sourceTokenAddress)
+        request["ownerAccountAddress"] = owner_account_address
+        request["sourceWalletAddress"] = source_wallet_address
+        request["sourceTokenAddress"] = source_token_address
 
         quote = self.lifi_client.get_quote(request, escrow_address)
         quoted_destination_amount = _extract_quoted_destination_amount(quote)
@@ -125,11 +134,13 @@ class IntentService:
         intent = GaslessIntent(
             id=str(uuid4()),
             flowType="bridge",
-            userAddress=request["userAddress"],
+            ownerAccountAddress=owner_account_address,
             createAccount=payload.createAccount,
             targetAccountAddress=target_account_address,
+            sourceWalletType=payload.sourceWalletType,
+            sourceWalletAddress=source_wallet_address,
             sourceChainId=payload.sourceChainId,
-            sourceTokenAddress=request["sourceTokenAddress"],
+            sourceTokenAddress=source_token_address,
             destinationTokenAddress=self.destination_token_address,
             fromAmount=payload.fromAmount,
             quotedDestinationAmount=quoted_destination_amount,
@@ -156,8 +167,7 @@ class IntentService:
         return intent
 
     def create_direct_intent(self, payload: CreateDirectIntentRequest) -> GaslessIntent:
-        if not Web3.is_address(payload.userAddress):
-            raise HttpError(400, "userAddress must be a valid EVM address")
+        owner_account_address = self._validate_owner_account_address(payload.ownerAccountAddress)
         target_account_address = self._validate_account_target(
             create_account=payload.createAccount,
             target_account_address=payload.targetAccountAddress,
@@ -178,15 +188,16 @@ class IntentService:
         escrow_address, escrow_wallet_index = self.escrow_manager.assign_address(existing)
         created_at = _now_iso()
         status: IntentStatus = "AWAITING_FUNDS"
-        user_address = Web3.to_checksum_address(payload.userAddress)
         token_address = self.destination_token_address
 
         intent = GaslessIntent(
             id=str(uuid4()),
             flowType="direct",
-            userAddress=user_address,
+            ownerAccountAddress=owner_account_address,
             createAccount=payload.createAccount,
             targetAccountAddress=target_account_address,
+            sourceWalletType="evm",
+            sourceWalletAddress=owner_account_address,
             sourceChainId=self.destination_chain_id,
             sourceTokenAddress=token_address,
             destinationTokenAddress=token_address,
@@ -214,29 +225,27 @@ class IntentService:
         return intent
 
     def submit_source_tx(self, intent_id: str, payload: SubmitSourceTxRequest) -> GaslessIntent:
-        if not TX_HASH_RE.match(payload.txHash):
-            raise HttpError(400, "txHash must be a valid 32-byte transaction hash")
-
         intent = self.get_intent(intent_id)
         if intent.flowType != "bridge":
             raise HttpError(400, f"Intent {intent_id} is not a bridge intent")
+        source_tx_id = self._validate_source_tx_id(payload.sourceTxId, intent.sourceWalletType)
 
         for existing in self.store.list():
-            if existing.id != intent_id and existing.sourceTxHash == payload.txHash:
-                raise HttpError(409, f"Source tx hash is already registered on intent {existing.id}")
+            if existing.id != intent_id and existing.sourceTxId == source_tx_id:
+                raise HttpError(409, f"Source transaction id is already registered on intent {existing.id}")
 
         updated = self.store.update(
             intent_id,
             lambda intent: self._with_event(
                 intent.model_copy(
                     update={
-                        "sourceTxHash": payload.txHash,
+                        "sourceTxId": source_tx_id,
                         "bridgeStatus": "SUBMITTED",
                         "status": "BRIDGE_SUBMITTED",
                     }
                 ),
                 "BRIDGE_SUBMITTED",
-                "Frontend registered source-chain bridge transaction",
+                "Frontend registered source-chain bridge transaction id",
             ),
         )
 
@@ -247,7 +256,7 @@ class IntentService:
         return self.get_intent(intent_id)
 
     def submit_direct_funding_tx(self, intent_id: str, payload: SubmitDirectFundingTxRequest) -> GaslessIntent:
-        if not TX_HASH_RE.match(payload.txHash):
+        if not EVM_TX_HASH_RE.match(payload.txHash):
             raise HttpError(400, "txHash must be a valid 32-byte transaction hash")
 
         intent = self.get_intent(intent_id)
@@ -255,7 +264,7 @@ class IntentService:
             raise HttpError(400, f"Intent {intent_id} is not a direct funding intent")
 
         for existing in self.store.list():
-            if existing.id != intent_id and existing.sourceTxHash == payload.txHash:
+            if existing.id != intent_id and existing.sourceTxId == payload.txHash:
                 raise HttpError(409, f"Funding tx hash is already registered on intent {existing.id}")
 
         updated = self.store.update(
@@ -263,7 +272,7 @@ class IntentService:
             lambda current: self._with_event(
                 current.model_copy(
                     update={
-                        "sourceTxHash": payload.txHash,
+                        "sourceTxId": payload.txHash,
                         "bridgeStatus": "DIRECT_SUBMITTED",
                         "status": "FUNDING_SUBMITTED",
                     }
@@ -302,7 +311,7 @@ class IntentService:
 
         try:
             intent = self.get_intent(intent_id)
-            if intent.status in {"COMPLETED", "FAILED"} or not intent.sourceTxHash:
+            if intent.status in {"COMPLETED", "FAILED"} or not intent.sourceTxId:
                 return
 
             if intent.flowType == "direct":
@@ -311,7 +320,7 @@ class IntentService:
 
             try:
                 status = self.lifi_client.get_status(
-                    tx_hash=intent.sourceTxHash,
+                    tx_hash=intent.sourceTxId,
                     from_chain_id=intent.sourceChainId,
                     to_chain_id=self.destination_chain_id,
                     bridge=intent.quoteBridgeTool,
@@ -393,10 +402,10 @@ class IntentService:
                 self._processing.discard(intent_id)
 
     def _process_direct_intent(self, intent: GaslessIntent) -> None:
-        if not intent.sourceTxHash:
+        if not intent.sourceTxId:
             raise RuntimeError("Intent is missing funding tx hash")
 
-        receipt = self.hyperevm_service.get_transaction_receipt(intent.sourceTxHash)
+        receipt = self.hyperevm_service.get_transaction_receipt(intent.sourceTxId)
         if not receipt:
             self.store.update(
                 intent.id,
@@ -414,25 +423,27 @@ class IntentService:
             return
 
         if int(receipt.get("status", 0)) != 1:
-            raise RuntimeError(f"Direct funding transaction failed: {intent.sourceTxHash}")
+            raise RuntimeError(f"Direct funding transaction failed: {intent.sourceTxId}")
 
-        tx = self.hyperevm_service.get_transaction(intent.sourceTxHash)
+        tx = self.hyperevm_service.get_transaction(intent.sourceTxId)
         if not tx:
-            raise RuntimeError(f"Could not load direct funding transaction {intent.sourceTxHash}")
+            raise RuntimeError(f"Could not load direct funding transaction {intent.sourceTxId}")
 
         tx_from = tx.get("from")
-        if not tx_from or Web3.to_checksum_address(tx_from) != intent.userAddress:
-            raise RuntimeError(f"Funding transaction sender does not match intent user {intent.userAddress}")
+        if not tx_from or Web3.to_checksum_address(tx_from) != intent.sourceWalletAddress:
+            raise RuntimeError(
+                f"Funding transaction sender does not match intent source wallet {intent.sourceWalletAddress}"
+            )
 
         received_amount = self.hyperevm_service.get_matching_transfer_amount(
             receipt=receipt,
             token=intent.destinationTokenAddress,
-            from_address=intent.userAddress,
+            from_address=intent.sourceWalletAddress,
             to_address=intent.escrowAddress,
         )
         if received_amount <= 0:
             raise RuntimeError(
-                f"Funding transaction did not transfer {intent.destinationTokenAddress} from {intent.userAddress} to escrow {intent.escrowAddress}"
+                f"Funding transaction did not transfer {intent.destinationTokenAddress} from {intent.sourceWalletAddress} to escrow {intent.escrowAddress}"
             )
 
         minimum_required = max(int(intent.minimumAmount), int(intent.fromAmount))
@@ -449,7 +460,7 @@ class IntentService:
                         "status": "FUNDS_RECEIVED",
                         "bridgeStatus": "DIRECT_CONFIRMED",
                         "receivedAmount": str(received_amount),
-                        "destinationTxHash": intent.sourceTxHash,
+                        "destinationTxHash": intent.sourceTxId,
                     }
                 ),
                 "FUNDS_RECEIVED",
@@ -460,8 +471,8 @@ class IntentService:
 
     def _execute_on_chain(self, intent_id: str) -> None:
         intent = self.get_intent(intent_id)
-        if not intent.sourceTxHash or not intent.receivedAmount:
-            raise RuntimeError("Intent is missing sourceTxHash or receivedAmount")
+        if not intent.sourceTxId or not intent.receivedAmount:
+            raise RuntimeError("Intent is missing sourceTxId or receivedAmount")
 
         account = self.escrow_manager.get_execution_account(intent)
         self.hyperevm_service.ensure_gas_balance(account.address)
@@ -607,7 +618,10 @@ class IntentService:
         static_context = dict(self.contract_config.get("context", {}))
         effective_account_address = intent.createdAccountAddress or intent.targetAccountAddress
         context = {
-            "userAddress": intent.userAddress,
+            "userAddress": intent.ownerAccountAddress,
+            "ownerAccountAddress": intent.ownerAccountAddress,
+            "sourceWalletType": intent.sourceWalletType,
+            "sourceWalletAddress": intent.sourceWalletAddress,
             "escrowAddress": intent.escrowAddress,
             "collateralToken": intent.destinationTokenAddress,
             "receivedAmount": int(intent.receivedAmount or "0"),
@@ -618,7 +632,8 @@ class IntentService:
                 requested_name=intent.subAccountName,
             ),
             "sourceChainId": intent.sourceChainId,
-            "sourceTxHash": intent.sourceTxHash,
+            "sourceTxId": intent.sourceTxId,
+            "sourceTxHash": intent.sourceTxId,
             "createdAccountAddress": effective_account_address,
             **static_context,
         }
@@ -634,6 +649,43 @@ class IntentService:
         static_context = dict(self.contract_config.get("context", {}))
         name_prefix = static_context.get("subAccountNamePrefix", "gasless-")
         return f"{name_prefix}{sub_account_id}"
+
+    @staticmethod
+    def _validate_owner_account_address(value: str) -> str:
+        if not Web3.is_address(value):
+            raise HttpError(400, "ownerAccountAddress must be a valid EVM address")
+        return Web3.to_checksum_address(value)
+
+    @staticmethod
+    def _validate_source_wallet_address(value: str, wallet_type: WalletType) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise HttpError(400, "sourceWalletAddress must not be empty")
+        if wallet_type == "evm":
+            if not Web3.is_address(normalized):
+                raise HttpError(400, "sourceWalletAddress must be a valid EVM address")
+            return Web3.to_checksum_address(normalized)
+        return normalized
+
+    @staticmethod
+    def _validate_source_token_address(value: str, wallet_type: WalletType) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise HttpError(400, "sourceTokenAddress must not be empty")
+        if wallet_type == "evm":
+            if not Web3.is_address(normalized):
+                raise HttpError(400, "sourceTokenAddress must be a valid EVM address")
+            return Web3.to_checksum_address(normalized)
+        return normalized
+
+    @staticmethod
+    def _validate_source_tx_id(value: str, wallet_type: WalletType) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise HttpError(400, "sourceTxId must not be empty")
+        if wallet_type == "evm" and not EVM_TX_HASH_RE.match(normalized):
+            raise HttpError(400, "sourceTxId must be a valid 32-byte transaction hash for EVM funding")
+        return normalized
 
     @staticmethod
     def _validate_account_target(*, create_account: bool, target_account_address: Optional[str]) -> Optional[str]:

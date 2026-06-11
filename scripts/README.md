@@ -20,7 +20,7 @@ uv run --with-requirements requirements.txt scripts/test_flow_wizard.py \
 
 For the deployed host, use `https://gasless.enigma.bz`. Plain `http://gasless.enigma.bz` sits behind Cloudflare and returns `502`.
 
-If you want to execute a returned LI.FI quote from Rabby, use `rabby_lifi_sender.html`:
+If the source wallet is EVM and you want to execute a returned LI.FI quote from Rabby, use `rabby_lifi_sender.html`:
 
 1. Serve the `scripts/` directory locally:
 
@@ -35,20 +35,43 @@ python3 -m http.server 8000 --directory scripts
 6. Click `Send Transaction`.
 7. Copy the returned tx hash back into the terminal wizard.
 
+If the source wallet is Solana, use Phantom for the source-side bridge transaction. This repo now includes an experimental Phantom helper, but you may still need your real Solana frontend or wallet if the LI.FI response shape does not include a serialized Solana transaction payload that the helper can execute.
+
+There is now a separate experimental helper for Phantom:
+
+1. Serve the `scripts/` directory locally:
+
+```bash
+python3 -m http.server 8000 --directory scripts
+```
+
+2. Open `http://127.0.0.1:8000/phantom_lifi_sender.html` in the browser where Phantom is installed.
+3. Paste either the whole backend intent JSON or the nested LI.FI quote JSON.
+4. Click `Parse`, then `Connect Phantom`.
+5. Click `Send Transaction`.
+6. Copy the returned Solana signature back into the terminal wizard as `sourceTxId`.
+
+Important limitation:
+
+- `phantom_lifi_sender.html` only works if the pasted LI.FI response already contains a serialized Solana transaction payload in a format the helper understands.
+- If your LI.FI response does not contain that payload, use your real frontend or wallet instead and only use the CLI or wizard for backend submission and polling.
+
 Local backend:
 
 ```bash
 python3 scripts/frontend_cli.py health
 python3 scripts/frontend_cli.py create-intent \
-  --user-address 0xYourWallet \
-  --source-chain-id 42161 \
-  --source-token-address 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
+  --source-wallet-type solana \
+  --source-wallet-address YourPhantomWallet \
+  --owner-account-address 0xYourHyperOwner \
+  --source-chain-id 1151111081099710 \
+  --source-token-address EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v \
   --from-amount 25000000 \
   --from-amount-for-gas 1000000 \
   --sub-account-id 0 \
   --sub-account-name gasless-0 \
   --slippage 0.005
-python3 scripts/frontend_cli.py submit-source-tx --tx-hash 0xYourBridgeTxHash
+python3 scripts/frontend_cli.py submit-source-tx --source-tx-id YourSolanaSignature
 python3 scripts/frontend_cli.py poll
 ```
 
@@ -71,7 +94,7 @@ Direct HyperEVM frontend flow through the API client:
 
 ```bash
 python3 scripts/frontend_cli.py create-direct-intent \
-  --user-address 0xYourWallet \
+  --owner-account-address 0xYourWallet \
   --amount 20000000000000000000 \
   --sub-account-id 0 \
   --sub-account-name gasless-0
@@ -83,7 +106,7 @@ Deposit-only mode with an existing subaccount:
 
 ```bash
 python3 scripts/frontend_cli.py create-direct-intent \
-  --user-address 0xYourWallet \
+  --owner-account-address 0xYourWallet \
   --amount 20000000000000000000 \
   --sub-account-name gasless-0 \
   --create-account false \

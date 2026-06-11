@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Phantom Solana LI.FI Sender</title>
+    <style>
+      :root {
+        --bg: #eef6ff;
+        --panel: #f9fbff;
+        --ink: #132033;
+        --muted: #5f6f86;
+        --line: #c8d8ec;
+        --accent: #2f6fd6;
+        --accent-strong: #154ba1;
+        --good: #17623b;
+        --bad: #8f1f1f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(47, 111, 214, 0.18), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(21, 75, 161, 0.12), transparent 24%),
+          linear-gradient(180deg, #f7fbff 0%, var(--bg) 100%);
+      }
+
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1;
+      }
+
+      .intro {
+        margin: 0 0 16px;
+        color: var(--muted);
+        max-width: 780px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 20px;
+      }
+
+      .card {
+        background: color-mix(in srgb, var(--panel) 88%, white);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 12px 40px rgba(19, 32, 51, 0.06);
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 1.1rem;
+      }
+
+      label {
+        display: block;
+        margin: 14px 0 8px;
+        font-weight: 600;
+      }
+
+      textarea,
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font: inherit;
+        background: #fffdf9;
+        color: var(--ink);
+      }
+
+      textarea {
+        min-height: 320px;
+        resize: vertical;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 11px 16px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+      }
+
+      button.secondary {
+        background: #d9e7fb;
+        color: var(--ink);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 8px 12px;
+        margin: 0;
+      }
+
+      .kv dt {
+        color: var(--muted);
+      }
+
+      .kv dd {
+        margin: 0;
+        word-break: break-all;
+      }
+
+      .status {
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fffdf9;
+        white-space: pre-wrap;
+      }
+
+      .status.good {
+        color: var(--good);
+        border-color: color-mix(in srgb, var(--good) 28%, var(--line));
+      }
+
+      .status.bad {
+        color: var(--bad);
+        border-color: color-mix(in srgb, var(--bad) 28%, var(--line));
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      @media (max-width: 820px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <script src="https://unpkg.com/@solana/web3.js@1.98.4/lib/index.iife.min.js"></script>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Phantom Solana LI.FI Sender</h1>
+      <p class="intro">
+        Paste either the whole backend intent JSON or just the nested LI.FI quote JSON. This helper looks for a
+        serialized Solana transaction payload and asks Phantom to sign and send it.
+      </p>
+      <p class="intro">
+        This helper is <strong>Solana-only</strong>. Use it for source-side Solana funding flows. After Phantom returns
+        a signature, paste that signature back into the terminal wizard or submit it to the backend as
+        <code>sourceTxId</code>.
+      </p>
+
+      <div class="grid">
+        <section class="card">
+          <h2>Quote Input</h2>
+          <label for="quoteInput">Intent JSON or Quote JSON</label>
+          <textarea id="quoteInput" placeholder='Paste the response from POST /v1/intents here'></textarea>
+
+          <div class="actions">
+            <button id="parseBtn" class="secondary">Parse</button>
+            <button id="connectBtn" class="secondary">Connect Phantom</button>
+            <button id="sendBtn" disabled>Send Transaction</button>
+          </div>
+
+          <div id="status" class="status">Waiting for quote JSON.</div>
+        </section>
+
+        <aside class="card">
+          <h2>Parsed Transaction</h2>
+          <dl class="kv">
+            <dt>Wallet</dt>
+            <dd id="walletValue">Not connected</dd>
+            <dt>Source Chain</dt>
+            <dd id="chainValue">-</dd>
+            <dt>Owner Account</dt>
+            <dd id="ownerValue">-</dd>
+            <dt>Escrow</dt>
+            <dd id="escrowValue">-</dd>
+            <dt>Tool</dt>
+            <dd id="toolValue">-</dd>
+            <dt>Tx Encoding</dt>
+            <dd id="encodingValue">-</dd>
+          </dl>
+
+          <label for="dataPreview">Serialized Transaction Preview</label>
+          <textarea id="dataPreview" readonly></textarea>
+
+          <p class="hint">
+            If parsing fails, your LI.FI response likely does not contain a serialized Solana transaction in a format
+            this helper understands yet. In that case, execute the route in your real frontend and only use the wizard
+            for backend status tracking.
+          </p>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const quoteInput = document.getElementById("quoteInput");
+      const dataPreview = document.getElementById("dataPreview");
+      const statusEl = document.getElementById("status");
+      const connectBtn = document.getElementById("connectBtn");
+      const parseBtn = document.getElementById("parseBtn");
+      const sendBtn = document.getElementById("sendBtn");
+      const walletValue = document.getElementById("walletValue");
+      const chainValue = document.getElementById("chainValue");
+      const ownerValue = document.getElementById("ownerValue");
+      const escrowValue = document.getElementById("escrowValue");
+      const toolValue = document.getElementById("toolValue");
+      const encodingValue = document.getElementById("encodingValue");
+
+      let connectedAccount = null;
+      let parsed = null;
+
+      function setStatus(message, tone = "") {
+        statusEl.textContent = message;
+        statusEl.className = tone ? `status ${tone}` : "status";
+      }
+
+      function getSolanaProvider() {
+        const provider = window.phantom?.solana;
+        if (!provider?.isPhantom) {
+          throw new Error("Phantom provider not found. Open this page in the browser where Phantom is installed.");
+        }
+        return provider;
+      }
+
+      function getSourceChainId(quote) {
+        return (
+          quote?.action?.fromChainId ??
+          quote?.fromChainId ??
+          quote?.transactionRequest?.chainId ??
+          quote?.transactionRequest?.chainID ??
+          null
+        );
+      }
+
+      function tryGetField(object, paths) {
+        for (const path of paths) {
+          let current = object;
+          let ok = true;
+          for (const part of path) {
+            if (current == null || !(part in current)) {
+              ok = false;
+              break;
+            }
+            current = current[part];
+          }
+          if (ok && typeof current === "string" && current.trim()) {
+            return current.trim();
+          }
+        }
+        return null;
+      }
+
+      function isBase64Like(value) {
+        return /^[A-Za-z0-9+/=]+$/.test(value);
+      }
+
+      function normalizeSerializedTransaction(value) {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+
+        if (trimmed.startsWith("base64:")) {
+          return { encoding: "base64", value: trimmed.slice("base64:".length) };
+        }
+
+        if (trimmed.startsWith("0x")) {
+          return { encoding: "hex", value: trimmed.slice(2) };
+        }
+
+        if (isBase64Like(trimmed)) {
+          return { encoding: "base64", value: trimmed };
+        }
+
+        return null;
+      }
+
+      function hexToBytes(hex) {
+        const pairs = hex.match(/.{1,2}/g) || [];
+        return Uint8Array.from(pairs.map((pair) => parseInt(pair, 16)));
+      }
+
+      function base64ToBytes(base64) {
+        const raw = atob(base64);
+        return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+      }
+
+      function deserializeTransaction(serialized) {
+        const bytes = serialized.encoding === "hex" ? hexToBytes(serialized.value) : base64ToBytes(serialized.value);
+
+        try {
+          return solanaWeb3.VersionedTransaction.deserialize(bytes);
+        } catch (_) {
+          try {
+            return solanaWeb3.Transaction.from(bytes);
+          } catch (err) {
+            throw new Error(`Could not deserialize Solana transaction: ${err.message || err}`);
+          }
+        }
+      }
+
+      function extractQuotePayload(raw) {
+        if (raw?.sourceWalletType && raw.sourceWalletType !== "solana") {
+          throw new Error("This helper is Solana-only. Your intent uses an EVM source wallet.");
+        }
+
+        if (raw?.quote) {
+          if (raw.sourceWalletType && raw.sourceWalletType !== "solana") {
+            throw new Error("This helper is Solana-only. Your intent uses an EVM source wallet.");
+          }
+          return {
+            quote: raw.quote,
+            intent: raw,
+          };
+        }
+
+        return {
+          quote: raw,
+          intent: null,
+        };
+      }
+
+      function extractSerializedTransaction(parsedPayload) {
+        const candidate = tryGetField(parsedPayload, [
+          ["quote", "transactionRequest", "serializedTransaction"],
+          ["quote", "transactionRequest", "transaction"],
+          ["quote", "transactionRequest", "data"],
+          ["quote", "transactionRequest", "tx"],
+          ["quote", "transactionRequest", "message"],
+          ["quote", "transactionRequestBase64"],
+          ["quote", "serializedTransaction"],
+          ["quote", "transaction"],
+          ["quote", "data"],
+        ]);
+
+        const normalized = candidate ? normalizeSerializedTransaction(candidate) : null;
+        if (!normalized) {
+          throw new Error(
+            "Could not find a serialized Solana transaction in the pasted JSON. This helper expects a base64 or hex Solana transaction payload."
+          );
+        }
+
+        return normalized;
+      }
+
+      function renderParsed() {
+        if (!parsed) return;
+
+        const chainId = getSourceChainId(parsed.quote);
+        chainValue.textContent = chainId == null ? "-" : String(chainId);
+        ownerValue.textContent = parsed.intent?.ownerAccountAddress || "-";
+        escrowValue.textContent = parsed.intent?.escrowAddress || "-";
+        toolValue.textContent = parsed.quote?.tool || "-";
+        encodingValue.textContent = parsed.serializedTransaction.encoding;
+        dataPreview.value = parsed.serializedTransaction.value;
+      }
+
+      async function connectWallet() {
+        const provider = getSolanaProvider();
+        const response = await provider.connect();
+        connectedAccount = response?.publicKey?.toString() || provider.publicKey?.toString() || null;
+        walletValue.textContent = connectedAccount || "Not connected";
+        return connectedAccount;
+      }
+
+      function parseInput() {
+        const raw = quoteInput.value.trim();
+        if (!raw) {
+          throw new Error("Paste the intent JSON or quote JSON first.");
+        }
+
+        const parsedJson = JSON.parse(raw);
+        const payload = extractQuotePayload(parsedJson);
+        const serializedTransaction = extractSerializedTransaction(payload);
+        parsed = {
+          ...payload,
+          serializedTransaction,
+        };
+        renderParsed();
+        sendBtn.disabled = false;
+        setStatus("Solana quote parsed. Connect Phantom, then send the transaction.", "good");
+      }
+
+      async function sendTransaction() {
+        if (!parsed) {
+          throw new Error("Parse a quote first.");
+        }
+
+        const provider = getSolanaProvider();
+        if (!connectedAccount) {
+          await connectWallet();
+        }
+
+        const transaction = deserializeTransaction(parsed.serializedTransaction);
+        const result = await provider.signAndSendTransaction(transaction);
+        const signature = typeof result === "string" ? result : result?.signature;
+
+        if (!signature) {
+          throw new Error("Phantom returned no signature.");
+        }
+
+        setStatus(
+          `Transaction sent.\n\nSignature: ${signature}\n\nPaste this Solana transaction id back into the terminal wizard or submit it to the backend as sourceTxId.`,
+          "good"
+        );
+      }
+
+      parseBtn.addEventListener("click", () => {
+        try {
+          parseInput();
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        }
+      });
+
+      connectBtn.addEventListener("click", async () => {
+        try {
+          await connectWallet();
+          setStatus(`Connected Phantom wallet: ${connectedAccount}`, "good");
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        }
+      });
+
+      sendBtn.addEventListener("click", async () => {
+        sendBtn.disabled = true;
+        try {
+          await sendTransaction();
+        } catch (err) {
+          setStatus(err.message || String(err), "bad");
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -2,6 +2,13 @@
 
 This document explains how a web frontend should integrate with the gasless deposit backend in this repo.
 
+Wallet guidance:
+
+- For Solana-origin bridge flows, the source wallet should be Phantom or another Solana wallet.
+- For EVM-origin bridge flows, the source wallet can be Rabby, MetaMask, or another EVM wallet.
+- The `rabby_lifi_sender.html` helper in `scripts/` is only for EVM wallet testing.
+- The `phantom_lifi_sender.html` helper in `scripts/` is only for Solana wallet testing and only works when the LI.FI payload includes a serialized Solana transaction the page can submit through Phantom.
+
 The backend supports two user flows:
 
 1. `bridge`: the user starts on another chain, receives a LI.FI quote, executes that transaction in their wallet, and the backend finishes the HyperEVM deposit after the bridge completes.

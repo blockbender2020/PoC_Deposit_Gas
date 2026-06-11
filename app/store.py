@@ -89,7 +89,7 @@ class IntentStore:
                     WHERE id = ?
                     """,
                     (
-                        updated.sourceTxHash,
+                        updated.sourceTxId,
                         updated.updatedAt,
                         updated.status,
                         self._encode_payload(updated),
@@ -145,7 +145,7 @@ class IntentStore:
     def _encode_intent(self, intent: GaslessIntent) -> tuple[str, Optional[str], str, str, str, str]:
         return (
             intent.id,
-            intent.sourceTxHash,
+            intent.sourceTxId,
             intent.createdAt,
             intent.updatedAt,
             intent.status,
