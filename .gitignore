@@ -2,6 +2,9 @@ node_modules
 dist
 .env
 storage/*.json
+storage/*.db
+storage/*.db-shm
+storage/*.db-wal
 .venv
 __pycache__
 *.pyc
